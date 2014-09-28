@@ -11,8 +11,10 @@
         return;
     }
 
-    if(!String.prototype.trim) {
-        String.prototype.trim = function () {
+    if(!String.prototype.trim)
+    {
+        String.prototype.trim = function ()
+        {
             return this.replace(/^\s+|\s+$/g,'');
         };
     }
@@ -28,15 +30,19 @@
 
     function addMaskStyle(css)
     {
-        var style=doc.createElement('style');
-        style.type='text/css';
-        try{
+        var style = doc.createElement('style');
+        style.type = 'text/css';
+        try
+        {
             style.appendChild(doc.createTextNode(css));
-        }catch(ex){
-            style.styleSheet.cssText=css;
+        }
+        catch(ex)
+        {
+            style.styleSheet.cssText = css;
         }
         doc.getElementsByTagName("head")[0].appendChild(style);
     }
+
     addMaskStyle("defer-boot{ display: none; }");
 
     boot.link = function(href)
@@ -54,10 +60,12 @@
             attrs: arguments[1] || null,
             alive: function(callback)
             {
+                // instance script
                 var node = doc.createElement('script');
-                node.async = false;
+                node.async = true;
                 node.type = "text/javascript";
 
+                // set attributes
                 var attrs = this.attrs;
                 if(attrs)
                 {
@@ -68,6 +76,7 @@
                     }
                 }
 
+                // attachEvent
                 if (node.attachEvent && !(node.attachEvent.toString && node.attachEvent.toString().indexOf('[native code') < 0) && !isOpera)
                 {
                     node.onreadystatechange = function()
@@ -90,6 +99,7 @@
         };
     };
 
+    /** deprecated **/
     boot.httpLoader = function(href, callback)
     {
         var loader;
@@ -119,12 +129,13 @@
         }
     };
 
+    // launch
     boot.init = function()
     {
-        var boot_script;
-        var scripts = doc.scripts;
-        var len = scripts.length;
-        var root_path, config_path;
+        var boot_script,
+            scripts = doc.scripts, len = scripts.length,
+            root_path, config_path;
+
         for(var i = 0; i < len; i++)
         {
             var script = scripts[i];
@@ -141,12 +152,12 @@
         {
             return;
         }
-        boot.mian_node = boot_script;
 
+        boot.mian_node = boot_script;
         boot.root = root_path;
         boot.config_path = config_path;
 
-        var config_uri = config_path && config_path != "" ? config_path : boot.root + 'config.js'
+        var config_uri = config_path && config_path != "" ? config_path : boot.root + 'config.js';
 
         doc.getElementsByTagName('html')[0].style.opacity = '0';
 
@@ -189,22 +200,25 @@
         //attach css
         doc.getElementsByTagName("head")[0].appendChild(heads);
 
-        queueLaunch(queue);
+        dequeue(queue, boot._trigger_boot_ready_);
 
         return;
     };
 
-    function queueLaunch(queue)
+    function dequeue(queue, clear)
     {
-        var node = queue.shift();
-        node.alive(function()
+        if(!queue.length)
         {
-            if(queue.length == 0)
-            {
-                return boot.launch.call(null);
-            }
-            queueLaunch(queue);
+            return clear ? clear.call(null) : null;
+        }
+
+        var item = queue.shift();
+
+        item.alive(function()
+        {
+            return dequeue.call(null, queue, clear);
         });
+
         return;
     }
 
@@ -213,7 +227,7 @@
         alert('load error before ready!')
     };
 
-    boot.launch = function()
+    boot._trigger_boot_ready_ = function()
     {
         var i, items, len;
         if(_boot.$buffer)
@@ -258,49 +272,33 @@
 
         doc.getElementsByTagName('html')[0].style.opacity = '1';
 
-        loadDefer();
+        boot._launch_defers_();
     };
 
-    var isDefer = false;
-    function loadDefer() {
-        _boot.$deferscripts$ = [];
-        var defer_scripts = doc.querySelectorAll("defer-boot");
+    boot._launch_defers_ = function()
+    {
+        var queue = [];
+
+        var defer_scripts = doc.getElementsByTagName("defer-boot");
+
         if (defer_scripts && defer_scripts.length != 0)
         {
-            for (var i = 0; i < defer_scripts.length; i++)
+            while(defer_scripts.length)
             {
-                var defer = defer_scripts[i];
-                var node = _boot.script(defer.getAttribute('src'), defer.attributes);
+                var item = defer_scripts.item(0);
+                var node = _boot.script(item.getAttribute('src'), item.attributes);
+                queue.push(node);
 
-                _boot.$deferscripts$.push(node);
-
-                doc.body.removeChild(defer);
+                doc.body.removeChild(item);
             }
-
-            _boot.$scripts$ = _boot.$deferscripts$.concat();
-
-            queueDeferred();
+            _boot.$scripts$ = queue;
+            dequeue(queue, _boot.complete);
         }
         else
         {
             _boot.complete();
         }
-    }
-
-    function queueDeferred()
-    {
-        if(!_boot.$scripts$ || _boot.$scripts$.length == 0)
-        {
-            _boot.complete();
-            return;
-        }
-
-        var node = _boot.$scripts$.shift();
-        node.alive(function()
-        {
-            return queueDeferred();
-        });
-    }
+    };
 
     boot.complete = function()
     {
@@ -320,6 +318,23 @@
     boot.isComplete = false;
 
     win._boot = boot;
+
+    win.$ = function(target)
+    {
+        if(!_boot.$buffer)
+        {
+            _boot.$buffer = [];
+        }
+
+        var item = {dom: target, ready: function(func)
+        {
+            item.onready = func;
+        }};
+
+        _boot.$buffer.push(item);
+
+        return item;
+    };
 
     win.ready = function(func)
     {
@@ -349,23 +364,6 @@
             _boot.comp = [];
         }
         _boot.comp.push(func);
-    };
-
-    win.$ = function(target)
-    {
-        if(!_boot.$buffer)
-        {
-            _boot.$buffer = [];
-        }
-
-        var item = {dom: target, ready: function(func)
-        {
-            item.onready = func;
-        }};
-
-        _boot.$buffer.push(item);
-
-        return item;
     };
 
     boot.init();
