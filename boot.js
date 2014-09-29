@@ -224,7 +224,7 @@
 
     boot.onLoadError = function()
     {
-        alert('load error before ready!')
+        alert('load error before ready!');
     };
 
     boot._trigger_boot_ready_ = function()
