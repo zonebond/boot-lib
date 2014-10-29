@@ -81,7 +81,7 @@
                 {
                     node.onreadystatechange = function()
                     {
-                        if(node.readyState == 'loaded')
+                        if(node.readyState == 'loaded' || node.readyState == 'complete')
                         {
                             callback.call(null);
                             node.onreadystatechange = null;
@@ -279,17 +279,26 @@
     {
         var queue = [];
 
-        var defer_scripts = doc.getElementsByTagName("defer-boot");
+        var defer_scripts;
+        if(typeof doc.querySelectorAll == 'function')
+        {
+            defer_scripts = doc.querySelectorAll('defer-boot');
+        }
+        else
+        {
+            defer_scripts = doc.getElementsByTagName("defer-boot");
+        }
 
         if (defer_scripts && defer_scripts.length != 0)
         {
-            while(defer_scripts.length)
+            var index = 0, len = defer_scripts.length;
+            while(index < len)
             {
-                var item = defer_scripts.item(0);
+                var item = defer_scripts.item(index);
                 var node = _boot.script(item.getAttribute('src'), item.attributes);
                 queue.push(node);
 
-                doc.body.removeChild(item);
+                index++;
             }
             _boot.$scripts$ = queue;
             dequeue(queue, _boot.complete);
