@@ -11,22 +11,36 @@
         return;
     }
 
-    if(!String.prototype.trim)
+    if (!String.prototype.trim)
     {
-        String.prototype.trim = function ()
-        {
-            return this.replace(/^\s+|\s+$/g,'');
-        };
+        (function(){
+            // Make sure we trim BOM and NBSP
+            var rtrim = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g;
+            String.prototype.trim = function ()
+            {
+                if(this instanceof String)
+                {
+                    return this.replace(rtrim, "");
+                }
+                else
+                {
+                    if(console)
+                        console.log("调用 trim()函数 对象不是于String类型！");
+
+                }
+            }
+        })();
     }
 
-    var isOpera = typeof opera !== 'undefined' && opera.toString() === '[object Opera]';
+    var boot = {}, doc = win.document,
+        isOpera = typeof opera !== 'undefined' && opera.toString() === '[object Opera]',
+        isBrowser = !!(typeof window !== 'undefined' && navigator && doc),
+        readyRegExp = isBrowser && navigator.platform === 'PLAYSTATION 3' ? /^complete$/ : /^(complete|loaded)$/;
 
     function isFunction( obj )
     {
         return typeof obj == 'function';
     }
-
-    var boot = {}, doc = document;
 
     function addMaskStyle(css)
     {
@@ -76,25 +90,31 @@
                     }
                 }
 
+                node.callback = callback;
+
                 // attachEvent
                 if (node.attachEvent && !(node.attachEvent.toString && node.attachEvent.toString().indexOf('[native code') < 0) && !isOpera)
                 {
-                    node.onreadystatechange = function()
-                    {
-                        if(node.readyState == 'loaded' || node.readyState == 'complete')
-                        {
-                            callback.call(null);
-                            node.onreadystatechange = null;
-                        }
-                    }
+                    node.attachEvent('onreadystatechange', this.hands);
                 }
                 else
                 {
-                    node.addEventListener('load', callback, false);
+                    node.addEventListener('load', this.hands, false);
                 }
 
                 node.src = src;
                 doc.getElementsByTagName('head')[0].appendChild(node);
+            },
+            hands: function(event)
+            {
+                var target = event.currentTarget || event.srcElement;
+                if (event.type === 'load' || (readyRegExp.test(target.readyState)))
+                {
+                    if(target.callback)
+                    {
+                        target.callback.call(null);
+                    }
+                }
             }
         };
     };
@@ -121,7 +141,7 @@
                     callback.call(null, loader.responseText);
                     loader = null;
                 }
-            }
+            };
 
             loader.open("POST", href, false);
             loader.setRequestHeader("If-Modified-Since", "0");
@@ -161,8 +181,7 @@
 
         doc.getElementsByTagName('html')[0].style.opacity = '0';
 
-        var config = boot.script(config_uri);
-        config.alive(_boot.get);
+        boot.script(config_uri).alive(_boot.get);
 
     };
 
