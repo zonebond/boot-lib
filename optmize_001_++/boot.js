@@ -11,6 +11,14 @@
         return;
     }
 
+    if(!win.doExe)
+    {
+        win.doExe = function(something, boss)
+        {
+            return eval("(function(){ \n" + something + "\n }).call(boss)");
+        };
+    }
+
     if(!String.prototype.trim)
     {
         (function(){
@@ -109,7 +117,7 @@
 
     addMaskStyle("defer-boot{ display: none; }");
 
-    boot.CacheCode = function()
+    var CacheCode = function()
     {
         if(!win.top.__CacheCode__)
         {
@@ -189,16 +197,17 @@
         };
     };
 
-    /** deprecated **/
+    // for cache-code
     boot.httpLoader = function(href)
     {
         return {
+            cache: arguments[1] == undefined ? true : arguments[1],
             href: href,
             alive: function(callback)
             {
                 this.callback = callback;
 
-                var local_cache = boot.CacheCode(href);
+                var local_cache = CacheCode(href);
 
                 if(local_cache)
                 {
@@ -231,13 +240,18 @@
 
                 if(loader)
                 {
+                    this.loader = loader;
+
                     loader.onreadystatechange = function(evt)
                     {
                         if(loader.readyState == 4 && loader.status == 200)
                         {
                             var code = loader.responseText;
 
-                            boot.CacheCode(who.href, code);
+                            if(who.cache)
+                            {
+                                CacheCode(who.href, code);
+                            }
 
                             who.response = code;
 
@@ -493,6 +507,7 @@
             }
         };
     }
+    boot.dequeuing = dequeuing;
 
     boot.parallel_load = function(item)
     {
