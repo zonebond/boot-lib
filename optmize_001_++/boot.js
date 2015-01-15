@@ -409,7 +409,7 @@
                 {
                     boot.instance_script_node(item);
 
-                    var local_cache = boot.CacheCode(item);
+                    var local_cache = CacheCode(item);
 
                     if(local_cache)
                     {
