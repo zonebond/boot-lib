@@ -92,8 +92,8 @@
     /*******      detect browser     *******/
     /***************************************/
 
-    //boot.optmize = ua.ie && /MSIE 8.0/.test(nav.appVersion) ? false : true;
-    boot.optmize = true;
+    //boot.optimize = ua.ie && /MSIE 8.0/.test(nav.appVersion) ? false : true;
+    boot.optimize = true;
 
     function isFunction( obj )
     {
@@ -323,7 +323,7 @@
 
         doc.getElementsByTagName('html')[0].style.opacity = '0';
 
-        if(boot.optmize)
+        if(boot.optimize)
         {
             boot.DOMContentLoaded_Thread();
         }
@@ -342,9 +342,11 @@
         {
             if (evt.type === 'DOMContentLoaded' || (readyRegExp.test(doc.readyState)))
             {
-                boot._dom_ready_ = true;
-
-                if(boot._libs_ready_)
+                if(!boot._dom_sync_ready_)
+                {
+                    boot._dom_sync_ready_ = true;
+                }
+                else
                 {
                     boot._launch_defers_();
                 }
@@ -387,7 +389,7 @@
             }
             else
             {
-                node = boot.optmize ? boot.httpLoader(href) : boot.script(href);
+                node = boot.optimize ? boot.httpLoader(href) : boot.script(href);
                 queue.push(node);
             }
         }
@@ -395,7 +397,7 @@
         //attach css
         doc.getElementsByTagName("head")[0].appendChild(heads);
 
-        if(boot.optmize)
+        if(boot.optimize)
         {
             dequeuing(queue, function()
             {
@@ -420,7 +422,7 @@
                         catch(ex)
                         {
                             if (window.console)
-                                window.console.log(ex);
+                                window.console.log("optimize ::" + ex);
                         }
                     }
                 });
@@ -611,9 +613,9 @@
 
     boot._launch_defers_ = function()
     {
-        boot._libs_ready_ = true;
-        if(!boot._dom_ready_)
+        if(!boot._dom_sync_ready_)
         {
+            boot._dom_sync_ready_ = true;
             return;
         }
 
