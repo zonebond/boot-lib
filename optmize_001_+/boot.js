@@ -397,6 +397,7 @@
             else
             {
                 node = boot.optimize ? boot.httpLoader(href) : boot.script(href);
+                node.href = href;
                 queue.push(node);
             }
         }
@@ -406,19 +407,16 @@
 
         if(boot.optimize)
         {
-            dequeuing(queue, function()
+            dequeuing(queue.concat([]), function()
             {
-                var temp_queue = this._temp_queue_;
-                if(!temp_queue || temp_queue.length == 0)
+                if(!this._loaded_count_)
                 {
                     return;
                 }
 
-                dequeuing(temp_queue, boot._trigger_boot_ready_).sequence(function(item)
+                dequeuing(queue, boot._trigger_boot_ready_).sequence(function(item)
                 {
-                    var local_cache = CacheCode(item);
-
-                    boot.instance_script_node(item, local_cache);
+                    boot.instance_script_node(item.href, CacheCode(item.href));
                 });
 
             }).parallel(boot.parallel_load);
@@ -511,14 +509,14 @@
 
         item.alive(function()
         {
-            if(!who._temp_queue_)
+            if(!who._loaded_count_)
             {
-                who._temp_queue_ = [];
+                who._loaded_count_ = 0;
             }
 
-            who._temp_queue_.push(this.href);
+            who._loaded_count_++;
 
-            if(who.queue.length == who._temp_queue_.length)
+            if(who.queue.length == who._loaded_count_)
             {
                 who.clean();
             }
