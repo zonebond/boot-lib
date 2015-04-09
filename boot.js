@@ -902,11 +902,15 @@
         }
     };
 
-    win.ˆˆspriteˆˆ =
+    win.$$sprite$$ =
     {
         task_queue: [],
         task_types: {},
         registered: {},
+        /**
+         @param {string} [src]
+         @param {function} [callback]
+         */
         fetch: function(src, callback)
         {
             var cached = arguments[2] ? arguments[2] : false,
@@ -914,7 +918,7 @@
                 {
                     src: src,
                     cached: cached,
-                    loaded: win.ˆˆspriteˆˆ.loaded,
+                    loaded: win.$$sprite$$.loaded,
                     callback: callback
                 },
                 xhr;
@@ -967,7 +971,7 @@
                     xhr = null;
                     return function(event)
                     {
-                        if(console) console.error("ˆˆspriteˆˆ.fetch :: " + event.toString());
+                        if(console) console.error("$$sprite$$.fetch :: " + event.toString());
                     }()
                 };
 
@@ -982,13 +986,14 @@
             try
             {
                 win.doExe(this.txt_stream, win);
-                win.ˆˆspriteˆˆ.registered[this.src] = true;
             }
             catch(ex){}
 
+            win.$$sprite$$.registered[this.src] = true;
+
             if(this.callback)
             {
-                this.callback.apply(null, {src: this.src, txt_stream: this.txt_stream});
+                this.callback.call(null, [{src: this.src, txt_stream: this.txt_stream}]);
             }
 
             this.xhr = null; delete this.xhr;
@@ -997,11 +1002,21 @@
         }
     };
 
-    win.getScript = function(tasks, callback)
+    win.jetpack = function()
+    {
+        //ajax task package
+    };
+
+    /**
+     @param {object|string|Array} [tasks]
+     @param {function} [callback]
+     @return {void}
+     */
+    win.getScript = function (tasks, callback)
     {
         var queue = tasks instanceof Array == true ? tasks : [tasks];
 
-        var __sprite__ = win.ˆˆspriteˆˆ,
+        var __sprite__ = win.$$sprite$$,
             len = queue.length, qer, src;
 
         queue.callback = callback;
@@ -1012,7 +1027,7 @@
             for(var i = 0; i < total; i++)
             {
                 qer = queue[i];
-                src = typeof qer == 'String' ? qer : qer['url'];
+                src = typeof qer == 'string' ? qer : qer['url'];
 
                 if(!__sprite__.registered[src])
                     continue;
@@ -1034,7 +1049,7 @@
         for(var i = 0; i < len; i++)
         {
             qer = queue[i];
-            src = typeof qer == 'String' ? qer : qer['url'];
+            src = typeof qer == 'string' ? qer : qer['url'];
 
             if(!src || src.trim() == "" || __sprite__.task_types[src]) continue;
 
