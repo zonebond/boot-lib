@@ -2,9 +2,524 @@
  * Created by zonebond on 2014-2-15.
  */
 
-//optimize head loading and alive
+
+
+/**
+ * xCaching
+ */
+(function(W)
+{
+    if (typeof Object.create != 'function') {
+        (function () {
+            var F = function () {};
+            Object.create = function (o) {
+                if (arguments.length > 1) {
+                    throw Error('Second argument not supported');
+                }
+                if (o === null) {
+                    throw Error('Cannot set a null [[Prototype]]');
+                }
+                if (typeof o != 'object') {
+                    throw TypeError('Argument must be an object');
+                }
+                F.prototype = o;
+                return new F();
+            };
+        })();
+    }
+    /**
+     *  function plugin inherit
+     */
+    if (!Function.prototype.inherit) {
+        Function.prototype.inherit = function (superClass) {
+            this.prototype = Object.create(superClass.prototype);
+            return this.prototype;
+        };
+    }
+
+
+    /**
+     * Abstract Object Caching-Provider
+     * */
+    var CachingProvider = function(type)
+    {
+        this.type = type;
+        this.isAvailable = false;
+    }, _CachingProvider_Proto_ = CachingProvider.prototype;
+    _CachingProvider_Proto_.length = function(){};
+    _CachingProvider_Proto_.item = function(key, value){};
+    _CachingProvider_Proto_.removeItem = function(key){};
+    _CachingProvider_Proto_.clear = function(){};
+
+
+    /**
+     * Cookie-Provider : Caching-Provider
+     * */
+    var CookieProvider = function(){
+        CachingProvider.call(this, "Cookie-Provider");
+    }, _CookieProvider_ = CookieProvider.inherit(CachingProvider);
+
+
+    /**
+     * Storage-Provider : Caching-Provider
+     * */
+    var StorageProvider = function(type, storage)
+    {
+        CachingProvider.call(this, type);
+        this.storage = storage;
+        this.isAvailable = this.storage ? true : false;
+
+    }, _StorageProvider_ = StorageProvider.inherit(CachingProvider);
+    _StorageProvider_.item = function(key, value)
+    {
+        if(!this.isAvailable || typeof key != 'string') return;
+
+        if(value != undefined)
+        {
+            this.storage.setItem(key, value);
+        }
+        else
+        {
+            return this.storage.getItem(key)
+        }
+    };
+
+
+    /**
+     * SessionStorage-Provider : Caching-Provider
+     * */
+    var SessionStorageProvider = function()
+    {
+        StorageProvider.call(this, "SessionStorage-Provider", W.sessionStorage);
+    },_SessionStorageProvider_ = SessionStorageProvider.inherit(StorageProvider);
+
+
+    /**
+     * LocalStorage-Provider : Caching-Provider
+     * */
+    var LocalStorageProvider = function()
+    {
+        StorageProvider.call(this, "LocalStorage-Provider", W.localStorage);
+    }, _LocalStorageProvider_ = LocalStorageProvider.inherit(StorageProvider);
+
+
+    /**
+     * X-Caching
+     * */
+    var XCaching = function(owner)
+    {
+        this.owner = owner;
+        this.initial();
+    }, _XCaching_Proto_ = XCaching.prototype;
+    _XCaching_Proto_.initial = function()
+    {
+        this.providers = {};
+    };
+    _XCaching_Proto_.getCookieProvider = function()
+    {
+        if(!this.providers.cookie)
+            this.providers.cookie = new CookieProvider();
+
+        return this.providers.cookie;
+    };
+    _XCaching_Proto_.getSessionStorageProvider = function()
+    {
+        if(!this.providers.sessionStorage)
+            this.providers.sessionStorage = new SessionStorageProvider();
+        return this.providers.sessionStorage;
+    };
+    _XCaching_Proto_.getLocalStorageProvider = function()
+    {
+        if(!this.providers.localStorage)
+            this.providers.localStorage = new LocalStorageProvider();
+
+        return this.providers.localStorage;
+    };
+    _XCaching_Proto_.__getAvailableProvider__ = function()
+    {
+        if(this.getSessionStorageProvider().isAvailable)
+            return this.getSessionStorageProvider();
+
+        if(this.getLocalStorageProvider().isAvailable)
+            return this.getLocalStorageProvider();
+
+        return null;
+
+        if(this.getCookieProvider().isAvailable)
+            return this.getCookieProvider();
+    };
+    _XCaching_Proto_.item = function(key, value, expire)
+    {
+        if(typeof key != 'string') return;
+
+        var provider = this.__getAvailableProvider__();
+
+        if(!provider) return;
+
+        if(value)
+        {
+            provider.item(key, value);
+        }
+        else
+        {
+            return provider.item(key)
+        }
+    };
+    _XCaching_Proto_.clearItem = function(key)
+    {
+        if(W.sessionStorage)
+        {
+            W.sessionStorage.removeItem(key);
+        }
+        if(W.localStorage)
+        {
+            W.localStorage.removeItem(key);
+        }
+    };
+    _XCaching_Proto_.clear = function()
+    {
+        if(W.sessionStorage)
+            W.sessionStorage.clear();
+
+        if(W.localStorage)
+            W.localStorage.clear();
+    };
+
+    if(!W.xCaching) W.xCaching = new XCaching(W);
+
+
+    /**
+     * Intent
+     * */
+    var Intent = function(destination)
+    {
+        this.destination = destination;
+        this.__initial__();
+    }, _Intent_ = Intent.prototype;
+    Intent.SEqual = "*@*@*"; Intent.SDivis = "*~~~*"; Intent.RegExp = /\?/g;
+    _Intent_.__initial__ = function()
+    {
+        if(!W.localStorage) return;
+
+        this.storage = W.sessionStorage;
+
+        if(!this.destination)
+        {
+            if(!Intent.RegExp.test(W.location.href)) return;
+
+            var search = W.location.href.split('?')[1],
+                params = search.split('&'),
+                intent = null;
+            for(var i = 0; i < params.length; i++)
+            {
+                if(params[i].indexOf('intent') != -1)
+                {
+                    intent = params[i];
+                    break;
+                }
+            }
+
+            if(intent == null) return;
+            this.expNo = intent.split('=')[1];
+
+            this.__takeExtra__();
+        }
+        else
+        {
+            this.expNo = (new Date()).getMilliseconds() + "" + parseInt(Math.random() * 10000);
+
+            if(Intent.RegExp.test(this.destination))
+            {
+                this.__express__ = this.destination + "&intent=" + this.expNo;
+            }
+            else
+            {
+                this.__express__ = this.destination + "?intent=" + this.expNo;
+            }
+        }
+    };
+    _Intent_.__takeExtra__ = function()
+    {
+        if(!this.storage) return;
+
+        var putExtraItemsTxt = this.storage.getItem(this.expNo);
+        this.storage.removeItem(this.expNo);
+
+        if(!putExtraItemsTxt || putExtraItemsTxt.trim() == "" )
+        {
+            this.putExtraItems = null;
+        }
+        else
+        {
+            this.putExtraItems = this.__stringToMap__(putExtraItemsTxt, Intent.SEqual, Intent.SDivis)
+        }
+    };
+    _Intent_.__mapToString__ = function(map, eq, sp)
+    {
+        var set = [], str = "";
+        for(var key in map)
+        {
+            var val = map[key];
+            if(typeof val != 'string') continue;
+            set.push(key + eq + map[key]);
+        }
+        return set.join(sp);
+    };
+    _Intent_.__stringToMap__ = function(txt, eq, sp)
+    {
+        var map = {};
+        var set = txt.split(sp);
+        for(var i = 0; i < set.length; i++)
+        {
+            var t = set[i];
+            if(t == null || t.trim() == '' || t.indexOf(eq) == -1) continue;
+            var tt = t.split(eq);
+            map[tt[0]] = tt[1];
+        }
+        return map;
+    };
+    _Intent_.putExtra = function(key, value)
+    {
+        if (typeof key != 'string' || typeof value != 'string' || !this.storage) return;
+
+        if(!this.putExtraItems) this.putExtraItems = {};
+
+        this.putExtraItems[key] = value;
+    };
+    _Intent_.getExtra = function(key)
+    {
+        if (typeof key != 'string' || this.expNo == undefined || this.putExtraItems == null) return;
+
+        return this.putExtraItems[key];
+    };
+    _Intent_.start = function()
+    {
+        if(!this.storage) return;
+
+        var items = this.putExtraItems;
+        if(!items || !this.expNo) return;
+
+        this.storage.setItem(this.expNo, this.__mapToString__(items, Intent.SEqual, Intent.SDivis));
+
+        W.location = this.__express__;
+    };
+
+    if(!W.Intent) W.Intent = Intent;
+
+
+})(window);
+
+
+/**
+ * Handle & Event
+ */
+(function(W)
+{
+    /**
+     * inherit ability
+     */
+    if (typeof Object.create != 'function') {
+        (function () {
+            var F = function () {};
+            Object.create = function (o) {
+                if (arguments.length > 1) {
+                    throw Error('Second argument not supported');
+                }
+                if (o === null) {
+                    throw Error('Cannot set a null [[Prototype]]');
+                }
+                if (typeof o != 'object') {
+                    throw TypeError('Argument must be an object');
+                }
+                F.prototype = o;
+                return new F();
+            };
+        })();
+    }
+    if (!Function.prototype.inherit) {
+        Function.prototype.inherit = function (superClass) {
+            this.prototype = Object.create(superClass.prototype);
+            return this.prototype;
+        };
+    }
+
+    /**
+     * Retrieve Package [bases]
+     * @type {Window}
+     */
+    var namespace = W;
+
+    /**
+     * Define Class Handle [implement IHandle]
+     */
+    var Handle = function () {
+
+    }, _Handle_ = Handle.prototype;
+    _Handle_.todo = function (event) {
+        if (this._handles_ == undefined || event instanceof _Event == false)
+        {
+            return;
+        }
+
+        event = event.clone();
+        event.trigger = this;
+
+        var handlers = this._handles_[event.type];
+
+        if (handlers instanceof Array == false) {
+            event = null;
+            return;
+        }
+
+        var nums = handlers.length,
+            handler;
+        for (var i = 0; i < nums; i++) {
+            handler = handlers[i];
+
+            if (typeof handler != 'function') continue;
+
+            handler.call(this, event);
+        }
+
+        event = null;
+    };
+    _Handle_.when = function (type, handler) {
+        if (this._handles_ == undefined) {
+            this._handles_ = {};
+        }
+
+        if (typeof handler != 'function') {
+            return;
+        }
+
+        var handlers = this._handles_[type];
+        if (handlers == undefined) {
+            handlers = this._handles_[type] = [];
+        }
+        handlers.push(handler);
+    };
+    _Handle_.hasWhen = function(type) {
+        if (this._handles_ == undefined)
+        {
+            return false
+        }
+
+        return this._handles_[type] ? true : false;
+    };
+    _Handle_.delWhen = function(type, handler) {
+        if (this._handles_ && this._handles_[type])
+        {
+            delete this._handles_[type];
+        }
+    };
+    _Handle_.dispose = function () {
+        if (this._handles_)
+        {
+            for(var key in this._handles_)
+            {
+                delete this._handles_[key];
+            }
+        }
+        this._handles_ = null;
+    };
+    //_Handle_.tobo = function (state)
+    //{
+    //    if (this._states_ == undefined || typeof state != 'string')
+    //        return;
+    //
+    //    this.currentState = state;
+    //
+    //    var handlers = this._states_[state];
+    //
+    //    if (handlers instanceof Array == false)
+    //        return;
+    //
+    //    while(handlers.length)
+    //    {
+    //        var handler = handlers.shift();
+    //        if (typeof handler != 'function') continue;
+    //        handler.call(this);
+    //    }
+    //};
+    //_Handle_.been = function (state, handler)
+    //{
+    //    if (typeof handler != 'function')
+    //        return;
+    //
+    //    if (this._states_ == undefined)
+    //    {
+    //        this._states_ = {};
+    //    }
+    //
+    //    // check state
+    //    var hasBeen = false;
+    //    for(var s in this._states_)
+    //    {
+    //        if(s == state) hasBeen = true;
+    //    }
+    //
+    //    var handlers = this._states_[state];
+    //    if (handlers == undefined) {
+    //        handlers = this._states_[state] = [];
+    //    }
+    //    handlers.push(handler);
+    //
+    //    this.tobe(state);
+    //};
+    namespace.Handle = Handle;
+
+    /**
+     * Define Class Event [The Event is not System Window Event of User's Manipulation, but event of Business]
+     * @param type
+     * @param cancelable
+     * @private
+     */
+    var _Event = function (type, cancelable) {
+        this.type = type;
+        this.cancelable = cancelable;
+    };
+    _Event.prototype.clone = function () {
+        var clone = new _Event(this.type, this.cancelable);
+        clone.trigger = this.trigger;
+        return clone;
+    };
+    namespace._Event = _Event;
+
+
+    /**
+     * DataEvent : An Event can carry data
+     */
+    var DataEvent = function(type, data, cancelable)
+    {
+        _Event.call(this, type, cancelable);
+        this.data = data;
+    }, _DataEvent_ = DataEvent.inherit(_Event);
+    _DataEvent_.clone = function()
+    {
+        var clone = new DataEvent(this.type, this.data,this.cancelable);
+        clone.trigger = this.trigger;
+        return clone
+    };
+    namespace.DataEvent = DataEvent;
+
+})(window);
+
+
+/**
+ * optimize head loading and alive
+ */
 (function(win)
 {
+    /*@cc_on
+     // conditional IE < 9 only fix
+     @if (@_jscript_version <= 9)
+     (function(f){
+     window.setTimeout =f(window.setTimeout);
+     window.setInterval =f(window.setInterval);
+     })(function(f){return function(c,t){var a=[].slice.call(arguments,2);return f(function(){c.apply(this,a)},t)}});
+     @end
+     @*/
+
     if(win._boot)
     {
         return;
@@ -159,8 +674,10 @@
     /***************************************/
 
     //boot.optimize = ua.ie && /MSIE 8.0/.test(nav.appVersion) ? false : true;
+    boot.version = "1.2.0";
     boot.optimize = true;
-    boot.styleCached = false;
+    boot.styleCached = true;
+    boot.deferCached = true;
 
     function isFunction( obj )
     {
@@ -184,25 +701,52 @@
     }
 
     addMaskStyle("defer-boot{ display: none; }");
-    addMaskStyle("body{ opacity: 0; }");
+    addMaskStyle("body{opacity: 0 !important;}");
+    addMaskStyle("body.content-ready{opacity: 1 !important;}");
 
     var CacheCode = function()
     {
-        if(!win.top.__CacheCode__)
+        try
         {
-            win.top.__CacheCode__ = {};
-        }
+            var name = arguments[0],
+                code = arguments[1];
 
-        var name = arguments[0],
-            code = arguments[1];
+            if(win.localStorage)
+            {
+                if(code == undefined)
+                {
+                    return win.localStorage.getItem(name);
+                }
+                else
+                {
+                    win.top.localStorage.setItem(name, code);
+                }
+            }
+            else
+            {
+                if(!win.top.__CacheCode__)
+                {
+                    win.top.__CacheCode__ = {};
+                }
 
-        if(code == undefined)
-        {
-            return win.top.__CacheCode__[name];
+                if(code == undefined)
+                {
+                    return win.top.__CacheCode__[name];
+                }
+                else
+                {
+                    win.top.__CacheCode__[name] = code;
+                }
+            }
         }
-        else
+        catch(ex)
         {
-            win.top.__CacheCode__[name] = code;
+            if(console) console.info(" Cross Domain !!! CodeCacheProxy Is Denied !");
+
+            if(arguments.length == 1)
+            {
+                return null;
+            }
         }
     };
 
@@ -410,10 +954,33 @@
     {
         var parts = href.split('/');
         parts.length = parts.length - 1;
+        cssText = cssText.replace(/url\("/g, 'url("' + parts.join('/') + '/');
+        cssText = cssText.replace(/url\('/g, 'url(\'' + parts.join('/') + '/');
 
-        var css = cssText.replace(/url\("/g, 'url("' + parts.join('/') + '/');
+        var styleNode = doc.createElement('style');
+        styleNode.setAttribute('type', 'text/css');
 
-        addMaskStyle(css);
+        if (!styleNode.styleSheet)
+        {
+            styleNode.appendChild(document.createTextNode(cssText));
+        }
+
+        var head = doc.getElementsByTagName('head')[0];
+
+        head.appendChild(styleNode);
+
+        /**
+         * For IE.
+         * This needs to happen *after* the style element is added to the DOM, otherwise IE 7 and 8 may crash.
+         * See http://social.msdn.microsoft.com/Forums/en-US/7e081b65-878a-4c22-8e68-c10d39c2ed32/internet-explorer-crashes-appending-style-element-to-head
+         */
+        if (styleNode.styleSheet) {
+            try
+            {
+                styleNode.styleSheet.cssText = cssText;
+            }
+            catch (e) { throw new Error("Couldn't reassign styleSheet.cssText."); }
+        }
     };
 
     boot.instance_script_node = function(src)
@@ -426,9 +993,48 @@
         doc.getElementsByTagName('head')[0].appendChild(node);
     };
 
+    boot.options =
+    {
+        config_path: null,
+        optimized: true
+    };
+
+    boot.getMetaOptions = function()
+    {
+        var metadata = doc.getElementsByTagName('boot');
+    };
+
+    boot.detectVersion = function()
+    {
+        if(!win.localStorage)
+        {
+            return;
+        }
+
+        var storage = win.localStorage;
+        var version = storage.getItem('--boot-libs-version--');
+        if(version)
+        {
+            if(version != boot.version)
+            {
+                if(console) console.log("--boot-libs-- :: Caching Version Different !!!");
+                localStorage.clear();
+                return;
+            }
+        }
+        else
+        {
+            localStorage.clear();
+            storage.setItem('--boot-libs-version--', boot.version);
+        }
+    };
+
     // launch
     boot.init = function()
     {
+        boot.getMetaOptions();
+        boot.detectVersion();
+
         var boot_script,
             scripts = doc.scripts, len = scripts.length,
             root_path, config_path;
@@ -453,19 +1059,13 @@
         boot.mian_node = boot_script;
         boot.root = root_path;
         boot.config_path = config_path;
+        boot.optimize = boot_script.getAttribute('optimized') == 'false' ? false : true;
 
         var config_uri = config_path && config_path != "" ? config_path : boot.root + 'config.js';
 
         doc.getElementsByTagName('html')[0].style.opacity = '0';
 
-        if(boot.optimize)
-        {
-            boot.DOMContentLoaded_Thread();
-        }
-        else
-        {
-            boot._dom_ready_ = true;
-        }
+        boot.DOMContentLoaded_Thread();
 
         boot.script(config_uri).alive(boot.get);
 
@@ -473,28 +1073,108 @@
 
     boot.DOMContentLoaded_Thread = function()
     {
-        var handler = function(evt)
+        var WhenContentLoaded = function(callback)
         {
-            if (evt.type === 'DOMContentLoaded' || (readyRegExp.test(doc.readyState)))
+            var WIN = window, DOC = window.document, UND = undefined, fn = function()
             {
-                if(!boot._dom_sync_ready_)
+                if(WhenContentLoaded.called)
+                    return;
+                WhenContentLoaded.called = true;
+                callback.call();
+            };
+
+            WhenContentLoaded.called = false;
+
+            if((DOC.readyState != UND && DOC.readyState == "complete") || (DOC.readyState == UND && (DOC.getElementsByTagName('body')[0] || DOC.body)))
+            {
+                fn();
+            }
+
+            if(!WhenContentLoaded.called)
+            {
+                if(DOC.addEventListener != UND)
                 {
-                    boot._dom_sync_ready_ = true;
+                    DOC.addEventListener("DOMContentLoaded", fn, false);
                 }
                 else
                 {
-                    boot._trigger_boot_ready_();
+                    DOC.attachEvent("onreadystatechange", function()
+                    {
+                        if (DOC.readyState == "complete")
+                        {
+                            DOC.detachEvent("onreadystatechange", arguments.callee);
+                            fn();
+                        }
+                    });
+                }
+
+                //win loaded
+                if (WIN.addEventListener != UND)
+                {
+                    WIN.addEventListener("load", fn, false);
+                }
+                else if (DOC.addEventListener != UND)
+                {
+                    DOC.addEventListener("load", fn, false);
+                }
+                else if (WIN.attachEvent != UND)
+                {
+                    WIN.attachEvent("onload", fn);
+                }
+                else if (WIN.onload == "function")
+                {
+                    var fnOld = WIN.onload;
+                    WIN.onload = function()
+                    {
+                        fn();
+                        //确保在其它目标(exp:onpageshow)事件之前触发
+                        fnOld();
+                    };
+                }
+                else
+                {
+                    WIN.onload = fn;
                 }
             }
+
         };
 
-        if (doc.attachEvent && !(doc.attachEvent.toString && doc.attachEvent.toString().indexOf('[native code') < 0) && !isOpera)
+        WhenContentLoaded(function()
         {
-            doc.attachEvent('onreadystatechange', handler);
-        }
-        else
+            boot._trigger_DOM_standby_();
+
+            if(!boot._dom_sync_ready_)
+            {
+                boot._dom_sync_ready_ = true;
+                return;
+            }
+
+            //boot._trigger_boot_ready_();
+            boot._trigger_real_ready_();
+        });
+    };
+
+    boot.extraLibraryPath = function(file)
+    {
+        var pri = (boot.config_path != undefined && boot.config_path != "") ? boot.config_path + "../../" : boot.root + "../";
+        return pri + file;
+    };
+
+    boot.CacheScriptActivate = function(href)
+    {
+        var local_cache = CacheCode(href);
+
+        if(local_cache)
         {
-            doc.addEventListener('DOMContentLoaded', handler);
+            try
+            {
+                eval.call(win, local_cache);
+            }
+            catch(ex)
+            {
+                if (window.console)
+                    window.console.log(href + "\n optimize ::" + ex);
+            }
         }
     };
 
@@ -515,7 +1195,7 @@
         {
             var item = items[i];
             var part = item.split('.');
-            var href = item[0] == "~" ? boot.config_path + "../../" + item.substr(1) : _boot.root + item;
+            var href = item[0] == "~" ? boot.extraLibraryPath(item.substr(1)) : _boot.root + item;
             var node;
             if(part[part.length - 1] == 'css')
             {
@@ -524,7 +1204,15 @@
             }
             else
             {
-                node = boot.optimize ? boot.httpLoader(href) : boot.script(href);
+                if(boot.optimize)
+                {
+                    node = boot.httpLoader(href);
+                    boot.instance_script_node(href);
+                }
+                else
+                {
+                    node = boot.script(href);
+                }
             }
             node.href = href;
             queue.push(node);
@@ -551,11 +1239,9 @@
                         }
                         else
                         {
-                            boot.instance_script_node(href);
-
                             try
                             {
-                                win.eval(local_cache);
+                                eval.call(win, local_cache);
                             }
                             catch(ex)
                             {
@@ -702,21 +1388,45 @@
             window.console.log(evt);
     };
 
-    boot._trigger_boot_loaded_ = function()
+    boot._trigger_DOM_standby_ = function()
     {
+        boot._dom_standby_ = true;
 
-        boot._trigger_boot_ready_();
+        if(!boot._dom_standby_fns_) return;
+
+        var fns = boot._dom_standby_fns_;
+        while(fns.length)
+        {
+            fns.shift().call();
+        }
     };
 
     boot._trigger_boot_ready_ = function()
     {
+        // library is ready
+
+        if(boot._library_fns_)
+        {
+            var fns = boot._library_fns_;
+            while(fns.length)
+            {
+                fns.shift().call();
+            }
+        }
+        boot.isLibrary = true;
+
         if(!boot._dom_sync_ready_)
         {
             boot._dom_sync_ready_ = true;
             return;
         }
 
-        addMaskStyle("body{ opacity: 1; }");
+        boot._trigger_real_ready_();
+    };
+
+    boot._trigger_real_ready_ = function()
+    {
+        doc.body.setAttribute('class', 'content-ready');
 
         var i, items, len;
         if(_boot.$buffer)
@@ -784,7 +1494,7 @@
             while(index < len)
             {
                 var item = defer_scripts.item(index);
-                var node = _boot.script(item.getAttribute('src'), item.attributes);
+                var node = boot.deferCached ? boot.httpLoader(item.getAttribute('src'), true) : boot.script(item.getAttribute('src'), item.attributes);
                 queue.push(node);
 
                 index++;
@@ -796,6 +1506,11 @@
                 var who = this;
                 item.alive(function()
                 {
+                    if(boot.deferCached)
+                    {
+                        boot.CacheScriptActivate(item.href);
+                    }
+
                     who.next(every);
                 });
             };
@@ -843,6 +1558,36 @@
         return item;
     };
 
+    win.library = function(fn)
+    {
+        if(typeof fn != 'function') return;
+
+        if(boot.isLibrary)
+        {
+            fn();
+            return;
+        }
+
+        if(!boot._library_fns_) boot._library_fns_ = [];
+
+        boot._library_fns_.push(fn);
+    };
+
+    win.standby = function(fn)
+    {
+        if(typeof fn != 'function') return;
+
+        if(boot._dom_standby_)
+        {
+            fn();
+            return;
+        }
+
+        if(!boot._dom_standby_fns_) boot._dom_standby_fns_ = [];
+
+        boot._dom_standby_fns_.push(fn);
+    };
+
     win.ready = function(func)
     {
         if(_boot.isReady)
@@ -878,31 +1623,57 @@
 })(window);
 
 
-/**** sprite for loader resources ****/
-(function(win)
-{
-
+/**
+ * Sprite
+ */
+(function(win){
     var CacheCode = function()
     {
-        if(!win.top.__CacheCode__)
+        try
         {
-            win.top.__CacheCode__ = {};
-        }
+            var name = arguments[0],
+                code = arguments[1];
 
-        var name = arguments[0],
-            code = arguments[1];
+            if(win.sessionStorage)
+            {
+                if(code == undefined)
+                {
+                    return win.sessionStorage.getItem(name);
+                }
+                else
+                {
+                    win.top.sessionStorage.setItem(name, code);
+                }
+            }
+            else
+            {
+                if(!win.top.__CacheCode__)
+                {
+                    win.top.__CacheCode__ = {};
+                }
 
-        if(code == undefined)
-        {
-            return win.top.__CacheCode__[name];
+                if(code == undefined)
+                {
+                    return win.top.__CacheCode__[name];
+                }
+                else
+                {
+                    win.top.__CacheCode__[name] = code;
+                }
+            }
         }
-        else
+        catch(ex)
         {
-            win.top.__CacheCode__[name] = code;
+            if(console) console.info(" Cross Domain !!! CodeCacheProxy Is Denied !");
+
+            if(arguments.length == 1)
+            {
+                return null;
+            }
         }
     };
 
-    win.$$sprite$$ =
+    win.___sprite___ =
     {
         task_queue: [],
         task_types: {},
@@ -913,12 +1684,12 @@
          */
         fetch: function(src, callback)
         {
-            var cached = arguments[2] ? arguments[2] : false,
+            var cached = arguments[2] == undefined ? false : arguments[2],
                 loader =
                 {
                     src: src,
                     cached: cached,
-                    loaded: win.$$sprite$$.loaded,
+                    loaded: win.___sprite___.loaded,
                     callback: callback
                 },
                 xhr;
@@ -971,7 +1742,7 @@
                     xhr = null;
                     return function(event)
                     {
-                        if(console) console.error("$$sprite$$.fetch :: " + event.toString());
+                        if(console) console.error("___sprite___.fetch :: " + event.toString());
                     }()
                 };
 
@@ -989,7 +1760,7 @@
             }
             catch(ex){}
 
-            win.$$sprite$$.registered[this.src] = true;
+            win.___sprite___.registered[this.src] = true;
 
             if(this.callback)
             {
@@ -1002,11 +1773,6 @@
         }
     };
 
-    win.jetpack = function()
-    {
-        //ajax task package
-    };
-
     /**
      @param {object|string|Array} [tasks]
      @param {function} [callback]
@@ -1016,7 +1782,7 @@
     {
         var queue = tasks instanceof Array == true ? tasks : [tasks];
 
-        var __sprite__ = win.$$sprite$$,
+        var sprite = win.___sprite___,
             len = queue.length, qer, src;
 
         queue.callback = callback;
@@ -1029,7 +1795,7 @@
                 qer = queue[i];
                 src = typeof qer == 'string' ? qer : qer['url'];
 
-                if(!__sprite__.registered[src])
+                if(!sprite.registered[src])
                     continue;
 
                 count++;
@@ -1044,19 +1810,20 @@
             return false;
         };
 
-        __sprite__.task_queue.push(queue);
+        sprite.task_queue.push(queue);
 
         for(var i = 0; i < len; i++)
         {
             qer = queue[i];
             src = typeof qer == 'string' ? qer : qer['url'];
 
-            if(!src || src.trim() == "" || __sprite__.task_types[src]) continue;
+            if(!src || src.trim() == "" || sprite.task_types[src]) continue;
 
-            __sprite__.fetch(src, function()
+            sprite.fetch(src, function()
             {
-                var task_queue = __sprite__.task_queue,
-                    index = 0, queue;
+                var task_queue = sprite.task_queue,
+                    index = 0,
+                    queue;
                 while(index < task_queue.length)
                 {
                     queue = task_queue[index];
@@ -1071,5 +1838,39 @@
             }, qer['cached']);
         }
     };
+})(window);
 
+
+/**
+ * package management
+ */
+(function(W)
+{
+    W.btlibs =
+    {
+        bases:{},
+        components:{}
+    };
+
+    _boot.package = function(parent, package)
+    {
+        if(typeof parent != 'string' || typeof package != 'string') return;
+
+        var pack = W.btlibs[parent];
+
+        if(!pack)
+        {
+            return null;
+        }
+
+        pack = pack[package];
+        if(!pack)
+        {
+            pack = {};
+        }
+
+        return pack;
+    };
+
+    W.boot = _boot;
 })(window);
