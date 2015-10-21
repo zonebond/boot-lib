@@ -2,6 +2,23 @@
  * Created by zonebond on 2014-2-15.
  */
 
+var boot_libs_version = "1.2.0";
+
+
+/**
+ * Log
+ */
+(function(W)
+{
+    W.$LOG = function(txt)
+    {
+        if(W.console)
+        {
+            W.console.info(txt);
+        }
+    };
+
+})(window);
 
 
 /**
@@ -36,7 +53,6 @@
             return this.prototype;
         };
     }
-
 
     /**
      * Abstract Object Caching-Provider
@@ -171,19 +187,20 @@
         {
             W.sessionStorage.removeItem(key);
         }
-        if(W.localStorage)
-        {
-            W.localStorage.removeItem(key);
-        }
+        //if(W.localStorage)
+        //{
+        //    W.localStorage.removeItem(key);
+        //}
     };
     _XCaching_Proto_.clear = function()
     {
         if(W.sessionStorage)
             W.sessionStorage.clear();
 
-        if(W.localStorage)
-            W.localStorage.clear();
+        //if(W.localStorage)
+        //    W.localStorage.clear();
     };
+
 
     if(!W.xCaching) W.xCaching = new XCaching(W);
 
@@ -527,9 +544,9 @@
 
     if(!win.doExe)
     {
-        win.doExe = function(something, boss)
+        win.doExe = function(something, scope)
         {
-            return eval("(function(){ \n" + something + "\n }).call(boss)");
+            return eval("(function(){ \n" + something + "\n }).call(scope)");
         };
     }
 
@@ -554,7 +571,7 @@
     }
 
     // Support the smallest version of IE is 8
-    if(HTMLScriptElement)
+    try
     {
         Object.defineProperty(HTMLScriptElement.prototype, "uri", {
             get: function()
@@ -581,7 +598,7 @@
                 return this.src;
             }
         });
-    }
+    }catch (ex){}
 
     (function()
     {
@@ -669,15 +686,18 @@
             return { w3:w3cdom, wk:webkit, ie:ie, win:windows, mac:mac};
         }();
 
+
+    if(win.frameElement && win.frameElement.beforeReady)
+    {
+        try
+        {
+            win.frameElement.beforeReady.call(win.frameElement);
+        }catch(ex){$LOG("ERROR ::boot:: beforeReady " + ex)}
+    }
+
     /***************************************/
     /*******      detect browser     *******/
     /***************************************/
-
-    //boot.optimize = ua.ie && /MSIE 8.0/.test(nav.appVersion) ? false : true;
-    boot.version = "1.2.0";
-    boot.optimize = true;
-    boot.styleCached = true;
-    boot.deferCached = true;
 
     function isFunction( obj )
     {
@@ -706,57 +726,53 @@
 
     var CacheCode = function()
     {
+        var name = arguments[0], code = arguments[1];
         try
         {
-            var name = arguments[0],
-                code = arguments[1];
-
-            if(win.localStorage)
+            if(/http:\/\//.test(name))
             {
-                if(code == undefined)
-                {
-                    return win.localStorage.getItem(name);
-                }
-                else
-                {
-                    win.top.localStorage.setItem(name, code);
-                }
+                name = (name+'').split('/').splice(3).join('/')
             }
-            else
+
+            try
             {
-                if(!win.top.__CacheCode__)
+                if(!window.top.__CacheCode__)
                 {
-                    win.top.__CacheCode__ = {};
+                    window.top.__CacheCode__ = {};
                 }
 
                 if(code == undefined)
                 {
-                    return win.top.__CacheCode__[name];
+                    var cached = window.top.__CacheCode__[name];
+                    if(cached)return cached;
                 }
                 else
                 {
-                    win.top.__CacheCode__[name] = code;
+                    window.top.__CacheCode__[name] = code;
+                }
+            }catch(ex){$LOG(" = CACHE ERROR = CrossDomain!!!")}
+
+            if(window.localStorage)
+            {
+                if(code == undefined)
+                {
+                    return window.localStorage.getItem(name);
+                }
+                else
+                {
+                    window.localStorage.setItem(name+"", code);
                 }
             }
         }
         catch(ex)
         {
-            if(console) console.info(" Cross Domain !!! CodeCacheProxy Is Denied !");
+            $LOG(" = CACHE ERROR = " + name + "  | " + code.length);
 
             if(arguments.length == 1)
             {
                 return null;
             }
         }
-    };
-
-    boot.log = function(text)
-    {
-        return;
-
-        if(!console) return;
-
-        console.log(text);
     };
 
     boot.link = function(href)
@@ -950,6 +966,100 @@
         };
     };
 
+    /**
+     *  boot-lib major component
+     *  ** boot.js **
+     */
+
+        //boot.optimize = ua.ie && /MSIE 8.0/.test(nav.appVersion) ? false : true;
+
+    boot.getOptions = function()
+    {
+        var options = doc.getElementsByTagName('boot-option'),
+            attr_src, attr_config, attr_optimized, attr_cache_style, attr_cache_defer, isDebugMode = false;
+
+        if(!options.length)
+        {
+            var scripts = doc.scripts, len = scripts.length;
+
+            for(var i = 0; i < len; i++)
+            {
+                var script = scripts[i];
+                if(script.src.indexOf('boot.js') != -1)
+                {
+                    options = script;
+
+                    attr_src = options.src;
+                    attr_config = options.getAttribute('config');
+                    attr_optimized = options.getAttribute('optimized') === "false" ? false : true;
+                    attr_cache_style = options.getAttribute('cache-style') === "false" ? false : true;
+                    attr_cache_defer = options.getAttribute('cache-defer') === "false" ? false : true;
+                    isDebugMode = options.hasAttribute('debug-mode') ? true : false;
+                    break;
+                }
+            }
+
+            if(!attr_src)
+            {
+                return;
+            }
+        }
+        else
+        {
+            attr_src = options.getAttribute('root');
+            attr_config = options.getAttribute('config');
+            attr_optimized = options.getAttribute('optimized') === "false" ? false : true;
+            attr_cache_style = options.getAttribute('cache-style') === "false" ? false : true;
+            attr_cache_defer = options.getAttribute('cache-defer') === "false" ? false : true;
+            isDebugMode = options.hasAttribute('debug-mode') ? true : false;
+        }
+
+        boot.root = attr_src ? attr_src.replace('boot.js', '') : '/boot-libs/';
+        boot.config_path = attr_config;
+
+        if(isDebugMode)
+        {
+            boot.optimize = boot.styleCached = boot.deferCached = false;
+        }
+        else
+        {
+            boot.optimize = attr_optimized;
+            boot.styleCached = attr_cache_style;
+            boot.deferCached = attr_cache_defer;
+        }
+    };
+
+    boot.detectVersion = function()
+    {
+        if(!win.localStorage)
+        {
+            return;
+        }
+
+        var storage = win.localStorage;
+        var version = storage.getItem('--boot-libs-version--');
+        if(version)
+        {
+            if(version.indexOf('beta') != -1 && !sessionStorage.getItem('--boot-libs-version--'))
+            {
+                $LOG("--boot-libs-- :: beta version -> clear-cache ::");
+                localStorage.clear();
+                sessionStorage.setItem('--boot-libs-version--', 'beta-version-strategy')
+            }
+            else if(version != boot_libs_version)
+            {
+
+                $LOG("--boot-libs-- :: Caching Version Different !!!");
+                localStorage.clear();
+            }
+        }
+        else
+        {
+            localStorage.clear();
+        }
+        storage.setItem('--boot-libs-version--', boot_libs_version);
+    };
+
     boot.attach_stylesheet = function(href, cssText)
     {
         var parts = href.split('/');
@@ -993,82 +1103,16 @@
         doc.getElementsByTagName('head')[0].appendChild(node);
     };
 
-    boot.options =
-    {
-        config_path: null,
-        optimized: true
-    };
-
-    boot.getMetaOptions = function()
-    {
-        var metadata = doc.getElementsByTagName('boot');
-    };
-
-    boot.detectVersion = function()
-    {
-        if(!win.localStorage)
-        {
-            return;
-        }
-
-        var storage = win.localStorage;
-        var version = storage.getItem('--boot-libs-version--');
-        if(version)
-        {
-            if(version != boot.version)
-            {
-                if(console) console.log("--boot-libs-- :: Caching Version Different !!!");
-                localStorage.clear();
-                return;
-            }
-        }
-        else
-        {
-            localStorage.clear();
-            storage.setItem('--boot-libs-version--', boot.version);
-        }
-    };
-
     // launch
     boot.init = function()
     {
-        boot.getMetaOptions();
-        boot.detectVersion();
-
-        var boot_script,
-            scripts = doc.scripts, len = scripts.length,
-            root_path, config_path;
-
-        for(var i = 0; i < len; i++)
-        {
-            var script = scripts[i];
-            if(script.src.indexOf('boot.js') != -1)
-            {
-                boot_script = script;
-                root_path = script.src.replace('boot.js', '');
-                config_path = script.getAttribute('config');
-                break;
-            }
-        }
-
-        if(!root_path)
-        {
-            return;
-        }
-
-        boot.mian_node = boot_script;
-        boot.root = root_path;
-        boot.config_path = config_path;
-        boot.optimize = boot_script.getAttribute('optimized') == 'false' ? false : true;
-
-        var config_uri = config_path && config_path != "" ? config_path : boot.root + 'config.js';
+        boot.getOptions();
 
         doc.getElementsByTagName('html')[0].style.opacity = '0';
 
         boot.DOMContentLoaded_Thread();
 
-        boot.script(config_uri).alive(boot.get);
-
+        boot.script(boot.config_path && boot.config_path != "" ? boot.config_path : boot.root + 'config.js').alive(boot.get);
     };
 
     boot.DOMContentLoaded_Thread = function()
@@ -1172,14 +1216,17 @@
             }
             catch(ex)
             {
-                if (window.console)
-                    window.console.log(href + "\n optimize ::" + ex);
+                $LOG(href + "\n optimize ::" + ex);
             }
         }
     };
 
     boot.get = function()
     {
+        if(_boot.version) boot_libs_version = _boot.version;
+
+        boot.detectVersion();
+
         var queue = [];
         var heads = doc.createDocumentFragment();
         var items = _boot.configs || [];
@@ -1194,12 +1241,16 @@
         for(var i = 0; i < count; i++)
         {
             var item = items[i];
+
+            if (typeof item != 'string' || item.trim() == "")
+                continue;
+
             var part = item.split('.');
             var href = item[0] == "~" ? boot.extraLibraryPath(item.substr(1)) : _boot.root + item;
             var node;
             if(part[part.length - 1] == 'css')
             {
-                node = boot.styleCached ? boot.httpLoader(href) : boot.link(href);
+                node = (boot.styleCached && boot.optimize) ? boot.httpLoader(href) : boot.link(href);
                 node.type = 'css';
             }
             else
@@ -1241,12 +1292,12 @@
                         {
                             try
                             {
-                                eval.call(win, local_cache);
+                                //doExe(local_cache, win);
+                                win.eval.call(win, local_cache);
                             }
                             catch(ex)
                             {
-                                if (window.console)
-                                    window.console.log(href + "\n optimize ::" + ex);
+                                $LOG(href + "\n optimize ::" + ex);
                             }
                         }
                     }
@@ -1372,8 +1423,7 @@
             }
             catch(ex)
             {
-                if (window.console)
-                    window.console.log(ex);
+                $LOG(ex);
             }
 
             code = null;
@@ -1384,8 +1434,7 @@
 
     boot.onLoadError = function(evt)
     {
-        if (window.console)
-            window.console.log(evt);
+        $LOG(evt);
     };
 
     boot._trigger_DOM_standby_ = function()
@@ -1449,8 +1498,7 @@
                 }
                 catch (e)
                 {
-                    if (window.console)
-                        window.console.log(e.toString());
+                    $LOG(e.toString());
                 }
             }
         }
@@ -1627,44 +1675,50 @@
  * Sprite
  */
 (function(win){
+
     var CacheCode = function()
     {
+        var name = arguments[0], code = arguments[1];
         try
         {
-            var name = arguments[0],
-                code = arguments[1];
-
-            if(win.sessionStorage)
+            if(/http:\/\//.test(name))
             {
-                if(code == undefined)
-                {
-                    return win.sessionStorage.getItem(name);
-                }
-                else
-                {
-                    win.top.sessionStorage.setItem(name, code);
-                }
+                name = (name+'').split('/').splice(3).join('/')
             }
-            else
+
+            try
             {
-                if(!win.top.__CacheCode__)
+                if(!window.top.__CacheCode__)
                 {
-                    win.top.__CacheCode__ = {};
+                    window.top.__CacheCode__ = {};
                 }
 
                 if(code == undefined)
                 {
-                    return win.top.__CacheCode__[name];
+                    var cached = window.top.__CacheCode__[name];
+                    if(cached)return cached;
                 }
                 else
                 {
-                    win.top.__CacheCode__[name] = code;
+                    window.top.__CacheCode__[name] = code;
+                }
+            }catch(ex){$LOG(" = CACHE ERROR = CrossDomain!!!")}
+
+            if(window.localStorage)
+            {
+                if(code == undefined)
+                {
+                    return window.localStorage.getItem(name);
+                }
+                else
+                {
+                    window.localStorage.setItem(name+"", code);
                 }
             }
         }
         catch(ex)
         {
-            if(console) console.info(" Cross Domain !!! CodeCacheProxy Is Denied !");
+            $LOG(" = CACHE ERROR = " + name + "  | " + code.length);
 
             if(arguments.length == 1)
             {
@@ -1690,6 +1744,7 @@
                     src: src,
                     cached: cached,
                     loaded: win.___sprite___.loaded,
+                    pre_process: arguments[3],
                     callback: callback
                 },
                 xhr;
@@ -1754,17 +1809,16 @@
         {
             if(this.cached) CacheCode(this.src, this.txt_stream);
 
-            try
+            if(typeof this.pre_process === 'function')
             {
-                win.doExe(this.txt_stream, win);
+                this.pre_process.call(this, {src: this.src, txt_stream: this.txt_stream});
             }
-            catch(ex){}
 
             win.___sprite___.registered[this.src] = true;
 
             if(this.callback)
             {
-                this.callback.call(null, [{src: this.src, txt_stream: this.txt_stream}]);
+                this.callback.call(null, {src: this.src, txt_stream: this.txt_stream});
             }
 
             this.xhr = null; delete this.xhr;
@@ -1773,12 +1827,7 @@
         }
     };
 
-    /**
-     @param {object|string|Array} [tasks]
-     @param {function} [callback]
-     @return {void}
-     */
-    win.getScript = function (tasks, callback)
+    var TASK_STACK = function(tasks, callback, every)
     {
         var queue = tasks instanceof Array == true ? tasks : [tasks];
 
@@ -1803,7 +1852,7 @@
 
             if(total == count && total != 0)
             {
-                queue.callback();
+                if(queue.callback)queue.callback();
                 return true;
             }
 
@@ -1835,9 +1884,37 @@
                     }
                     index++;
                 }
-            }, qer['cached']);
+            }, qer['cached'], every);
         }
     };
+
+    /**
+     @param {object|string|Array} [tasks]
+     @param {function} [callback]
+     @return {void}
+     */
+    win.getScript = function (tasks, callback) {
+        return TASK_STACK(tasks, callback, function(holder)
+        {
+            try
+            {
+                win.eval.call(win, holder.txt_stream);
+            }
+            catch(ex){}
+        });
+    };
+
+    win.getStyles = function (tasks, callback) {
+        return TASK_STACK(tasks, callback, function(holder)
+        {
+            // todo
+            try
+            {
+                _boot.attach_stylesheet(holder.src, holder.txt_stream);
+            }
+            catch(ex){}
+        });
+    }
 })(window);
 
 
